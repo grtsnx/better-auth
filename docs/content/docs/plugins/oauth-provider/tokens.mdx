@@ -322,6 +322,20 @@ Call it before your endpoint consumes a one-time credential, such as a code. The
 
 An endpoint that only hands out nonces, such as a credential issuer's Nonce Endpoint, calls `provider.issueDpopNonce()`. It sets a nonce only when `dpop.nonce.required` is on. Otherwise it returns `undefined` and sets no header.
 
+### Bind later requests to a DPoP key
+
+Some plugin endpoints take several requests to finish, such as a sign-in that returns a session handle the client sends back on its next request. Anyone who obtains the handle could continue the flow. To stop this, require every later request to carry a proof from the key that started it. Store the `jkt` that `verifyDpopProof` returned on the first request, and pass it as `expectedJkt` on each later one:
+
+```ts
+// First request: store proof.jkt with the handle you return.
+const proof = await provider.verifyDpopProof({ required: true });
+
+// Later request: require a proof signed with the same key.
+await provider.verifyDpopProof({ expectedJkt: pending.dpopJkt });
+```
+
+With `expectedJkt`, the request must carry a proof signed with that key, even without `required: true`. A missing proof, or a proof signed with another key, fails with `invalid_dpop_proof`. With `dpop.nonce.required`, a proof from the expected key without a current nonce gets `use_dpop_nonce`, so the client can retry. When `expectedJkt` is `undefined`, the call behaves as if you had not passed it.
+
 ## Custom claims
 
 To add claims to access tokens, set `customAccessTokenClaims`. It receives `user`, `scopes`, `referenceId`, `resources`, and the client's `metadata`. It returns an object of claims to add. Use namespaced claim names, and see [RFC 9068 §2.2](https://datatracker.ietf.org/doc/html/rfc9068#section-2.2) for the claims the provider already sets. To stop a token from being issued, for example when the user has left the organization, throw from the callback.

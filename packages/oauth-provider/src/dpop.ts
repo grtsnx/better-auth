@@ -198,11 +198,11 @@ export async function verifyRequestDpopProof(
 export async function verifyEndpointDpopProof(
 	ctx: GenericEndpointContext,
 	opts: Pick<OAuthOptions<Scope[]>, "dpop">,
-	params?: { required?: boolean },
+	params?: { required?: boolean; expectedJkt?: string },
 ): Promise<VerifiedDpopProof | undefined> {
 	const proofJwt = getDpopProofJwt(ctx);
 	if (!proofJwt) {
-		if (params?.required) {
+		if (params?.required || params?.expectedJkt !== undefined) {
 			throwInvalidDpopProof("DPoP proof header is required");
 		}
 		return undefined;
@@ -216,6 +216,7 @@ export async function verifyEndpointDpopProof(
 		proofJwt,
 		method: ctx.request.method,
 		url: getEndpointUrl(ctx, ctx.path),
+		expectedJkt: params?.expectedJkt,
 	});
 }
 
