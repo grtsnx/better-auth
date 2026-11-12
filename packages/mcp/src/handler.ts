@@ -166,7 +166,10 @@ export const createMcpProtectedRequestHandler = (
 			return await handler(request, accessTokenClaims);
 		} catch (error) {
 			if (isInsufficientScopeError(error)) {
-				return toChallengeResponse(error, resource, resolvedChallengeOptions);
+				return toChallengeResponse(error, resource, {
+					...resolvedChallengeOptions,
+					request,
+				});
 			}
 			throw error;
 		}
