@@ -16,7 +16,7 @@ import {
 	LEVEL_0_ACR,
 	stripReservedIdTokenClaims,
 } from "./authentication-context";
-import { resolveAccessTokenClaims } from "./claims";
+import { resolveAccessTokenClaims, toStoredAccessTokenClaims } from "./claims";
 import { getRequestedUserInfoClaims } from "./claims-request";
 import {
 	challengeEndpointDpopNonce,
@@ -533,6 +533,7 @@ async function createOpaqueAccessToken(
 		requestedUserInfoClaims?: string[];
 		act?: OAuthActorClaim;
 		grantId?: string;
+		accessTokenClaims?: Record<string, unknown>;
 	} = {},
 ) {
 	const { confirmation, requestedUserInfoClaims, act, grantId } = issuance;
@@ -558,6 +559,7 @@ async function createOpaqueAccessToken(
 				grantId,
 				confirmation,
 				act,
+				accessTokenClaims: issuance.accessTokenClaims,
 				requestedUserInfoClaims: requestedUserInfoClaims?.length
 					? requestedUserInfoClaims
 					: undefined,
@@ -1531,8 +1533,9 @@ async function createUserTokens(
 			: undefined;
 
 	// Enriched (non-AS-owned) access-token claims, resolved once for the JWT
-	// mint. Opaque tokens persist no claims and re-derive the same set at
-	// introspection through this same resolver, so the formats cannot drift.
+	// mint. Opaque tokens store only the per-issuance claims and re-derive the
+	// rest at introspection through this same resolver, so the formats cannot
+	// drift.
 	const accessTokenClaims = isJwtAccessToken
 		? await resolveAccessTokenClaims({
 				ctx,
@@ -1594,6 +1597,10 @@ async function createUserTokens(
 						requestedUserInfoClaims,
 						act: params.act,
 						grantId,
+						accessTokenClaims: toStoredAccessTokenClaims(
+							params.accessTokenClaims,
+							opts,
+						),
 					},
 				),
 		earlyRefreshToken
