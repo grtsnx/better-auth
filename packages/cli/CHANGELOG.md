@@ -1,5 +1,14 @@
 # auth
 
+## 1.7.23
+
+### Patch Changes
+
+- Updated dependencies []:
+  - better-auth@1.7.23
+  - @better-auth/core@1.7.23
+  - @better-auth/telemetry@1.7.23
+
 ## 1.7.22
 
 ### Patch Changes
