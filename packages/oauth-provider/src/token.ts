@@ -1,16 +1,11 @@
 import type { GenericEndpointContext } from "@better-auth/core";
-import { assertDpopProofNonce } from "@better-auth/core/oauth2/internal";
 import { APIError } from "better-auth/api";
 import {
 	generateRandomString,
 	symmetricDecrypt,
 	symmetricEncrypt,
 } from "better-auth/crypto";
-import {
-	generateCodeChallenge,
-	getConfirmationJkt,
-	isDpopProofError,
-} from "better-auth/oauth2";
+import { generateCodeChallenge, getConfirmationJkt } from "better-auth/oauth2";
 import { resolveSigningKey, signJWT, toExpJWT } from "better-auth/plugins";
 import type { Session, User } from "better-auth/types";
 import type { JWTPayload } from "jose";
@@ -22,13 +17,11 @@ import {
 import { resolveAccessTokenClaims } from "./claims";
 import { getRequestedUserInfoClaims } from "./claims-request";
 import {
-	getDpopNonceOptions,
+	challengeEndpointDpopNonce,
 	getDpopProofJwt,
-	getDpopRequestTime,
 	getEndpointUrl,
 	issueEndpointDpopNonce,
 	throwInvalidDpopProof,
-	throwUseDpopNonce,
 	verifyEndpointDpopProof,
 	verifyRequestDpopProof,
 } from "./dpop";
@@ -121,7 +114,8 @@ export async function tokenEndpoint(
 		});
 	}
 
-	await challengeMissingDpopNonce(ctx, opts);
+	// Before any grant consumes its code or token, so the retry can redeem it.
+	await challengeEndpointDpopNonce(ctx, opts);
 
 	switch (grantType) {
 		case "authorization_code":
@@ -249,6 +243,7 @@ export function getOAuthProviderApi(
 				params,
 			)) as OAuthProviderApi["verifyDpopProof"],
 		issueDpopNonce: () => issueEndpointDpopNonce(ctx, opts),
+		challengeDpopNonce: () => challengeEndpointDpopNonce(ctx, opts),
 		hashToken: (token: string, type: StoreTokenType) =>
 			storeToken(opts.storeTokens, token, type),
 		validateAccessToken: async (token: string, clientId?: string) => {
@@ -858,31 +853,6 @@ async function resolveResourceGrantIssuance(
 		resourceCustomClaims: resourcePolicy.rawCustomClaims,
 		dpopBoundAccessTokensRequired: resourcePolicy.dpopBoundAccessTokensRequired,
 	};
-}
-
-/**
- * Issues the nonce challenge before any grant runs. Grants consume their
- * authorization code, device code, or refresh token before the DPoP proof is
- * fully verified, so challenging there would leave the client's retry with
- * nothing to redeem. The proof is still verified, nonce included, at issuance,
- * against the same request time, so a nonce that passes here cannot expire
- * before then.
- */
-async function challengeMissingDpopNonce(
-	ctx: GenericEndpointContext,
-	opts: OAuthOptions<Scope[]>,
-) {
-	const nonce = getDpopNonceOptions(ctx, opts);
-	const proofJwt = getDpopProofJwt(ctx);
-	if (!nonce || !proofJwt) return;
-	try {
-		await assertDpopProofNonce(proofJwt, nonce, getDpopRequestTime(ctx));
-	} catch (error) {
-		if (isDpopProofError(error)) {
-			await throwUseDpopNonce(ctx, nonce, error.message);
-		}
-		throw error;
-	}
 }
 
 function clientRequiresDpopBoundAccessTokens(client: SchemaClient<Scope[]>) {
